@@ -53,3 +53,30 @@ class Embedding(nn.Module):
         selection = F.one_hot(token_ids, num_classes=self.num_embeddings).to(self.emb.dtype)
         print("selection shape :", selection.shape)
         return einsum(selection, self.emb, "batch sequence vocab, vocab d -> batch sequence  d")
+
+
+class RMSNorm(nn.Module):
+    def __init__(self, d_model: int, eps: float = 1e-5, device=None, dtype=None):
+        super().__init__()
+        self.g = nn.Parameter(
+            torch.nn.init.trunc_normal_(
+                torch.empty(
+                    d_model,
+                    device=device,
+                    dtype=dtype,
+                ),
+                std=np.sqrt(2 / (d_model)),
+                a=-3.0,
+                b=3.0,
+            )
+        )
+        self.eps = eps
+        self.d_model = d_model
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        in_dtype = x.dtype
+        x = x.to(torch.float32)
+        rms = torch.sqrt(torch.sum(torch.square(x), dim=-1) / self.d_model + self.eps)
+
+        result = x / rms.unsqueeze(-1) * self.g
+        return result.to(in_dtype)
