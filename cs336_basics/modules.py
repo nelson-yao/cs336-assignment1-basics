@@ -2,7 +2,23 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from einops import einsum
-from torch import nn
+from jaxtyping import Float
+from torch import Tensor, nn
+
+
+def initialize(*size, dtype=None, device=None, a=-3.0, b=3.0):
+    return nn.Parameter(
+        torch.nn.init.trunc_normal_(
+            torch.empty(
+                *size,
+                device=device,
+                dtype=dtype,
+            ),
+            std=np.sqrt(2 / sum([x for x in size])),
+            a=-3.0,
+            b=3.0,
+        )
+    )
 
 
 class Linear(nn.Module):
@@ -51,5 +67,51 @@ class Embedding(nn.Module):
     def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
 
         selection = F.one_hot(token_ids, num_classes=self.num_embeddings).to(self.emb.dtype)
-        print("selection shape :", selection.shape)
         return einsum(selection, self.emb, "batch sequence vocab, vocab d -> batch sequence  d")
+
+
+class RMSNorm(nn.Module):
+    def __init__(self, d_model: int, eps: float = 1e-5, device=None, dtype=None):
+        super().__init__()
+        self.g = nn.Parameter(
+            torch.nn.init.trunc_normal_(
+                torch.empty(
+                    d_model,
+                    device=device,
+                    dtype=dtype,
+                ),
+                std=np.sqrt(2 / (d_model)),
+                a=-3.0,
+                b=3.0,
+            )
+        )
+        self.eps = eps
+        self.d_model = d_model
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        in_dtype = x.dtype
+        x = x.to(torch.float32)
+        rms = torch.sqrt(torch.sum(torch.square(x), dim=-1) / self.d_model + self.eps)
+
+        result = x / rms.unsqueeze(-1) * self.g
+        return result.to(in_dtype)
+
+
+class SwiGLU(nn.Module):
+    def __init__(
+        self,
+        d_ff: int,
+        d_model: int,
+        device=None,
+        dtype=None,
+    ):
+        super().__init__()
+        self.w1 = initialize(d_ff, d_model)
+        self.w2 = initialize(d_model, d_ff)
+        self.w3 = initialize(d_ff, d_model)
+
+    def forward(self, x: Float[Tensor, " ... d_model"]):
+        w1x = einsum(self.w1, x, "d_ff d_model, ... d_model -> ... d_ff")
+        w3x = einsum(self.w3, x, "d_ff d_model, ... d_model -> ... d_ff")
+        silu = w1x * torch.sigmoid(w1x)
+        return einsum(self.w2, (silu * w3x), "d_model d_ff, ... d_ff -> ... d_model")
