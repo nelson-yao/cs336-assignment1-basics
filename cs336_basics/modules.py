@@ -115,3 +115,19 @@ class SwiGLU(nn.Module):
         w3x = einsum(self.w3, x, "d_ff d_model, ... d_model -> ... d_ff")
         silu = w1x * torch.sigmoid(w1x)
         return einsum(self.w2, (silu * w3x), "d_model d_ff, ... d_ff -> ... d_model")
+
+
+class RoPE(nn.Module):
+    def __init__(self, theta: float, d_k: int, max_seq_len: int, device=None):
+        self.super().__init__()
+        k_vec = torch.arange(1, d_k // 2)
+        seq_vec = torch.arange(0, max_seq_len).reshape(max_seq_len, 1)
+        denominator = 1.0 / torch.pow(torch.tensor([theta], k_vec))
+        angles = seq_vec @ denominator
+        self.consine = torch.cos(angles)
+        self.sine = torch.sin(angles)
+        self.d = d_k
+        self.register_buffer("angles", self.angles, persistent=True)
+
+    def forward(self, x: torch.Tensor, token_positions: torch.Tensor) -> torch.Tensor:
+        rotation = torch.zeros(self.d, self.d)
