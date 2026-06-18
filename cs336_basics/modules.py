@@ -160,9 +160,7 @@ class RoPE(nn.Module):
         sin_pos = self.sin_cached[token_positions]
 
         x_2 = torch.stack([-x[..., 1::2], x[..., ::2]], dim=-1)
-        print("sine shape ", sin_pos.shape)
-        print("x shape :", x.shape)
-        print("x_2 shape :", x_2.shape)
+
         x_2 = x_2.flatten(start_dim=-2)
-        print("x_2 shape after:", x_2.shape)
+
         return x * cos_pos + x_2 * sin_pos
