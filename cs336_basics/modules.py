@@ -5,6 +5,8 @@ from einops import einsum
 from jaxtyping import Float
 from torch import Tensor, nn
 
+# lt.monkey_patch()  # Overrides default torch.Tensor print behavior
+
 
 def initialize(*size, dtype=None, device=None, a=-3.0, b=3.0):
     return nn.Parameter(
@@ -118,16 +120,49 @@ class SwiGLU(nn.Module):
 
 
 class RoPE(nn.Module):
+    # https://github.com/zhasion/CS336/blob/main/assignment1-basics/cs336_basics/module.py#L108
     def __init__(self, theta: float, d_k: int, max_seq_len: int, device=None):
-        self.super().__init__()
-        k_vec = torch.arange(1, d_k // 2)
-        seq_vec = torch.arange(0, max_seq_len).reshape(max_seq_len, 1)
-        denominator = 1.0 / torch.pow(torch.tensor([theta], k_vec))
-        angles = seq_vec @ denominator
-        self.consine = torch.cos(angles)
-        self.sine = torch.sin(angles)
+        super().__init__()
+        denominator = 1.0 / (theta ** (torch.arange(0, d_k, 2).float() / d_k))
+
+        seq_vec = torch.arange(max_seq_len).to(torch.float32)
+        angles = torch.repeat_interleave(torch.outer(seq_vec, denominator), 2, dim=-1)
+
         self.d = d_k
-        self.register_buffer("angles", self.angles, persistent=True)
+        self.d_vec = torch.arange(0, d_k, 2)
+        self.max_seq_len = max_seq_len
+
+        self.register_buffer("cos_cached", angles.cos(), persistent=False)
+        self.register_buffer("sin_cached", angles.sin(), persistent=False)
 
     def forward(self, x: torch.Tensor, token_positions: torch.Tensor) -> torch.Tensor:
-        rotation = torch.zeros(self.d, self.d)
+
+        # for dim in range(self.d // 2):
+        #     rotation.index_put_(
+        #         (token_positions, torch.tensor([dim * 2]), torch.tensor([dim * 2])), self.cosine[token_positions, dim]
+        #     )
+
+        #     rotation.index_put_(
+        #         (token_positions, torch.tensor([dim * 2 + 1]), torch.tensor([dim * 2 + 1])),
+        #         self.cosine[token_positions, dim],
+        #     )
+
+        #     rotation.index_put_(
+        #         (token_positions, torch.tensor([dim * 2]), torch.tensor([dim * 2 + 1])),
+        #         -self.sine[token_positions, dim],
+        #     )
+        #     rotation.index_put_(
+        #         (token_positions, torch.tensor([dim * 2 + 1]), torch.tensor([dim * 2])),
+        #         self.sine[token_positions, dim],
+        #     )
+
+        cos_pos = self.cos_cached[token_positions]
+        sin_pos = self.sin_cached[token_positions]
+
+        x_2 = torch.stack([-x[..., 1::2], x[..., ::2]], dim=-1)
+        print("sine shape ", sin_pos.shape)
+        print("x shape :", x.shape)
+        print("x_2 shape :", x_2.shape)
+        x_2 = x_2.flatten(start_dim=-2)
+        print("x_2 shape after:", x_2.shape)
+        return x * cos_pos + x_2 * sin_pos
