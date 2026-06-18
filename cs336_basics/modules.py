@@ -67,7 +67,6 @@ class Embedding(nn.Module):
         )
 
     def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
-
         selection = F.one_hot(token_ids, num_classes=self.num_embeddings).to(self.emb.dtype)
         return einsum(selection, self.emb, "batch sequence vocab, vocab d -> batch sequence  d")
 
@@ -136,26 +135,6 @@ class RoPE(nn.Module):
         self.register_buffer("sin_cached", angles.sin(), persistent=False)
 
     def forward(self, x: torch.Tensor, token_positions: torch.Tensor) -> torch.Tensor:
-
-        # for dim in range(self.d // 2):
-        #     rotation.index_put_(
-        #         (token_positions, torch.tensor([dim * 2]), torch.tensor([dim * 2])), self.cosine[token_positions, dim]
-        #     )
-
-        #     rotation.index_put_(
-        #         (token_positions, torch.tensor([dim * 2 + 1]), torch.tensor([dim * 2 + 1])),
-        #         self.cosine[token_positions, dim],
-        #     )
-
-        #     rotation.index_put_(
-        #         (token_positions, torch.tensor([dim * 2]), torch.tensor([dim * 2 + 1])),
-        #         -self.sine[token_positions, dim],
-        #     )
-        #     rotation.index_put_(
-        #         (token_positions, torch.tensor([dim * 2 + 1]), torch.tensor([dim * 2])),
-        #         self.sine[token_positions, dim],
-        #     )
-
         cos_pos = self.cos_cached[token_positions]
         sin_pos = self.sin_cached[token_positions]
 
@@ -164,3 +143,8 @@ class RoPE(nn.Module):
         x_2 = x_2.flatten(start_dim=-2)
 
         return x * cos_pos + x_2 * sin_pos
+
+
+def softmax(x: torch.Tensor, dim: int) -> torch.Tensor:
+    x = x - x.amax(dim=dim, keepdim=True)
+    return x.exp() / x.exp().sum(dim=dim, keepdim=True)
