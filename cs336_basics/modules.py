@@ -148,3 +148,14 @@ class RoPE(nn.Module):
 def softmax(x: torch.Tensor, dim: int) -> torch.Tensor:
     x = x - x.amax(dim=dim, keepdim=True)
     return x.exp() / x.exp().sum(dim=dim, keepdim=True)
+
+
+def attention(query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    d_k = key.shape[-1]
+    pre = einsum(query, key, "... q d_k, ... k d_k -> ... q k") / np.sqrt(d_k)
+
+    pre = pre.masked_fill(~mask, float("-inf"))
+    soft = softmax(pre, dim=-1)
+    output = einsum(soft, value, "... q k, ... k d_v-> ... q d_v")
+
+    return output
