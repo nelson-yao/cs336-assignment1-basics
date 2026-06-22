@@ -159,3 +159,8 @@ def attention(query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, mask:
     output = einsum(soft, value, "... q k, ... k d_v-> ... q d_v")
 
     return output
+
+
+class MultiHeadSelfAttention(nn.Module):
+    def __init__(self, theta: float, d_k: int, max_seq_len: int, device=None):
+        super().__init__()
