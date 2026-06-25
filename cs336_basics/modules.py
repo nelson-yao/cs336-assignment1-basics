@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-from einops import einsum
+from einops import einsum, rearrange
 from jaxtyping import Float
 from torch import Tensor, nn
 
@@ -162,5 +162,22 @@ def attention(query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, mask:
 
 
 class MultiHeadSelfAttention(nn.Module):
-    def __init__(self, theta: float, d_k: int, max_seq_len: int, device=None):
+    def __init__(self, d_model: int, h: int, max_seq_len: int, theta=10000, device=None):
         super().__init__()
+        d_k = d_v = int(d_model / h)
+        self.d_model = d_model
+        self.h = h
+        self.WQ = initialize(h * d_k, d_model, device=device)
+        self.WK = initialize(h * d_k, d_model, device=device)
+        self.WV = initialize(h * d_v, d_model, device=device)
+        self.WO = initialize(d_model, h * d_v, device=device)
+        self.max_seq_len = max_seq_len
+        self.rope = RoPE(theta, d_k, max_seq_len, device=device)
+
+    def forward(self, in_features: torch.Tensor) -> torch.Tensor:
+        q = rearrange(in_features @ self.WQ.T, "... seq  (h d_k) -> ... h seq d_k")
+        q = self.rope(q)
+        k = rearrange(in_features @ self.WK.T, "... seq  (h d_k) -> ... h seq d_k")
+        v = rearrange(in_features @ self.WV.T, "... seq  (h d_v) -> ... h seq d_v")
+        mask = torch.triu(torch.ones(self.max_seq_len, self.max_seq_len))
+        attn: Tensor = attention(q, k, v, mask=mask)
