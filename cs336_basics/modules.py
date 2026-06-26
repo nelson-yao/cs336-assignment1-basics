@@ -175,9 +175,13 @@ class MultiHeadSelfAttention(nn.Module):
         self.rope = RoPE(theta, d_k, max_seq_len, device=device)
 
     def forward(self, in_features: torch.Tensor) -> torch.Tensor:
-        q = rearrange(in_features @ self.WQ.T, "... seq  (h d_k) -> ... h seq d_k")
-        q = self.rope(q)
-        k = rearrange(in_features @ self.WK.T, "... seq  (h d_k) -> ... h seq d_k")
-        v = rearrange(in_features @ self.WV.T, "... seq  (h d_v) -> ... h seq d_v")
-        mask = torch.triu(torch.ones(self.max_seq_len, self.max_seq_len))
+        positions = torch.arange(in_features.shape[-2], device=in_features.device)
+        q = rearrange(in_features @ self.WQ.T, "... seq (h d_k) -> ... h seq d_k", h=self.h)
+        q = self.rope(q, positions)
+        k = rearrange(in_features @ self.WK.T, "... seq (h d_k) -> ... h seq d_k", h=self.h)
+        k = self.rope(k, positions)
+        v = rearrange(in_features @ self.WV.T, "... seq  (h d_v) -> ... h seq d_v", h=self.h)
+        mask = torch.triu(torch.ones(self.max_seq_len, self.max_seq_len)) > 0
         attn: Tensor = attention(q, k, v, mask=mask)
+        attn = rearrange(attn, "... h seq d_v -> ... seq  (h d_v)")
+        return attn @ self.WO.T
