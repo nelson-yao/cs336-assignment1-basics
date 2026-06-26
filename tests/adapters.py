@@ -154,9 +154,10 @@ def run_multihead_self_attention(
     model = MultiHeadSelfAttention(d_model, num_heads, max_seq_len)
     model.load_state_dict(
         {
-            "q_proj.weight": q_proj_weight,
-            "k_proj.weight": k_proj_weight,
-            "v_proj.weight": v_proj_weight,
+            "WQ": q_proj_weight,
+            "WK": k_proj_weight,
+            "WV": v_proj_weight,
+            "WO": o_proj_weight,
         }
     )
     return model.forward(in_features)
@@ -209,7 +210,7 @@ def run_multihead_self_attention_with_rope(
             "WO": o_proj_weight,
         }
     )
-    return model.forward(in_features)
+    return model.forward(in_features, token_positions)
 
 
 def run_rope(
