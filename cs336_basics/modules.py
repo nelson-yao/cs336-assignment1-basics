@@ -67,12 +67,20 @@ class Embedding(nn.Module):
         )
 
     def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
-        selection = F.one_hot(token_ids, num_classes=self.num_embeddings).to(self.emb.dtype)
-        return einsum(selection, self.emb, "batch sequence vocab, vocab d -> batch sequence  d")
+        selection = F.one_hot(token_ids, num_classes=self.num_embeddings).to(
+            self.emb.dtype
+        )
+        return einsum(
+            selection,
+            self.emb,
+            "batch sequence vocab, vocab d -> batch sequence  d",
+        )
 
 
 class RMSNorm(nn.Module):
-    def __init__(self, d_model: int, eps: float = 1e-5, device=None, dtype=None):
+    def __init__(
+        self, d_model: int, eps: float = 1e-5, device=None, dtype=None
+    ):
         super().__init__()
         self.g = nn.Parameter(
             torch.nn.init.trunc_normal_(
@@ -92,7 +100,9 @@ class RMSNorm(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         in_dtype = x.dtype
         x = x.to(torch.float32)
-        rms = torch.sqrt(torch.sum(torch.square(x), dim=-1) / self.d_model + self.eps)
+        rms = torch.sqrt(
+            torch.sum(torch.square(x), dim=-1) / self.d_model + self.eps
+        )
 
         result = x / rms.unsqueeze(-1) * self.g
         return result.to(in_dtype)
@@ -115,7 +125,9 @@ class SwiGLU(nn.Module):
         w1x = einsum(self.w1, x, "d_ff d_model, ... d_model -> ... d_ff")
         w3x = einsum(self.w3, x, "d_ff d_model, ... d_model -> ... d_ff")
         silu = w1x * torch.sigmoid(w1x)
-        return einsum(self.w2, (silu * w3x), "d_model d_ff, ... d_ff -> ... d_model")
+        return einsum(
+            self.w2, (silu * w3x), "d_model d_ff, ... d_ff -> ... d_model"
+        )
 
 
 class RoPE(nn.Module):
@@ -125,7 +137,9 @@ class RoPE(nn.Module):
         denominator = 1.0 / (theta ** (torch.arange(0, d_k, 2).float() / d_k))
 
         seq_vec = torch.arange(max_seq_len).to(torch.float32)
-        angles = torch.repeat_interleave(torch.outer(seq_vec, denominator), 2, dim=-1)
+        angles = torch.repeat_interleave(
+            torch.outer(seq_vec, denominator), 2, dim=-1
+        )
 
         self.d = d_k
         self.d_vec = torch.arange(0, d_k, 2)
@@ -134,7 +148,9 @@ class RoPE(nn.Module):
         self.register_buffer("cos_cached", angles.cos(), persistent=False)
         self.register_buffer("sin_cached", angles.sin(), persistent=False)
 
-    def forward(self, x: torch.Tensor, token_positions: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: torch.Tensor, token_positions: torch.Tensor
+    ) -> torch.Tensor:
         cos_pos = self.cos_cached[token_positions]
         sin_pos = self.sin_cached[token_positions]
 
@@ -150,7 +166,12 @@ def softmax(x: torch.Tensor, dim: int) -> torch.Tensor:
     return x.exp() / x.exp().sum(dim=dim, keepdim=True)
 
 
-def attention(query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+def attention(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    mask: torch.Tensor,
+) -> torch.Tensor:
     d_k = key.shape[-1]
     pre = einsum(query, key, "... q d_k, ... k d_k -> ... q k") / np.sqrt(d_k)
 
@@ -162,7 +183,9 @@ def attention(query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, mask:
 
 
 class MultiHeadSelfAttention(nn.Module):
-    def __init__(self, d_model: int, h: int, max_seq_len: int, theta=10000, device=None):
+    def __init__(
+        self, d_model: int, h: int, max_seq_len: int, theta=10000, device=None
+    ):
         super().__init__()
         d_k = d_v = int(d_model / h)
         self.d_model = d_model
@@ -174,15 +197,54 @@ class MultiHeadSelfAttention(nn.Module):
         self.max_seq_len = max_seq_len
         self.rope = RoPE(theta, d_k, max_seq_len, device=device)
 
-    def forward(self, in_features: torch.Tensor, token_positions: torch.Tensor = None) -> torch.Tensor:
-        q = rearrange(in_features @ self.WQ.T, "... seq (h d_k) -> ... h seq d_k", h=self.h)
+    def forward(
+        self, in_features: torch.Tensor, token_positions: torch.Tensor = None
+    ) -> torch.Tensor:
+        q = rearrange(
+            in_features @ self.WQ.T,
+            "... seq (h d_k) -> ... h seq d_k",
+            h=self.h,
+        )
         if token_positions is not None:
             q = self.rope(q, token_positions)
-        k = rearrange(in_features @ self.WK.T, "... seq (h d_k) -> ... h seq d_k", h=self.h)
+        k = rearrange(
+            in_features @ self.WK.T,
+            "... seq (h d_k) -> ... h seq d_k",
+            h=self.h,
+        )
         if token_positions is not None:
             k = self.rope(k, token_positions)
-        v = rearrange(in_features @ self.WV.T, "... seq  (h d_v) -> ... h seq d_v", h=self.h)
-        mask = torch.tril(torch.ones(self.max_seq_len, self.max_seq_len), diagonal=0) > 0.5
+        v = rearrange(
+            in_features @ self.WV.T,
+            "... seq  (h d_v) -> ... h seq d_v",
+            h=self.h,
+        )
+        mask = (
+            torch.tril(
+                torch.ones(self.max_seq_len, self.max_seq_len), diagonal=0
+            )
+            > 0.5
+        )
         attn: Tensor = attention(q, k, v, mask=mask)
         attn = rearrange(attn, "... h seq d_v -> ... seq  (h d_v)")
         return attn @ self.WO.T
+
+
+class TransformerBlock(nn.Module):
+    def __init__(
+        self,
+        attention_layer: MultiHeadSelfAttention,
+        rms_layer: RMSNorm,
+        ff_layer: SwiGLU,
+    ):
+        self.attn = attention_layer
+        self.rms_norm = rms_layer
+        self.ff = ff_layer
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.rms_norm(x)
+        positions = torch.arange(x.shape[-2])
+        x = x + self.attn.forward(x, positions)
+        x = self.rms_norm.forward(x)
+        x = x + self.ff.forward(x)
+        return x
