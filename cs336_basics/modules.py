@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from einops import einsum, rearrange
 from jaxtyping import Float
 from torch import Tensor, nn
+from copy import deepcopy
 
 # lt.monkey_patch()  # Overrides default torch.Tensor print behavior
 
@@ -234,17 +235,20 @@ class TransformerBlock(nn.Module):
     def __init__(
         self,
         attention_layer: MultiHeadSelfAttention,
-        rms_layer: RMSNorm,
+        rms_layer_1: RMSNorm,
+        rms_layer_2: RMSNorm,
         ff_layer: SwiGLU,
     ):
+        super().__init__()
         self.attn = attention_layer
-        self.rms_norm = rms_layer
+        self.rms_norm_1 = rms_layer_1
+        self.rms_norm_2: RMSNorm = deepcopy(rms_layer_2)
         self.ff = ff_layer
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.rms_norm(x)
+        x = self.rms_norm_1(x)
         positions = torch.arange(x.shape[-2])
         x = x + self.attn.forward(x, positions)
-        x = self.rms_norm.forward(x)
+        x = self.rms_norm_2.forward(x)
         x = x + self.ff.forward(x)
         return x

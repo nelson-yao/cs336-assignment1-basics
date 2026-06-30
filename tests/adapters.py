@@ -9,7 +9,17 @@ import torch
 from jaxtyping import Bool, Float, Int
 from torch import Tensor
 
-from cs336_basics.modules import Embedding, Linear, RMSNorm, RoPE, SwiGLU, attention, softmax, MultiHeadSelfAttention
+from cs336_basics.modules import (
+    Embedding,
+    Linear,
+    RMSNorm,
+    RoPE,
+    SwiGLU,
+    attention,
+    softmax,
+    MultiHeadSelfAttention,
+    TransformerBlock,
+)
 from cs336_basics.train_bpe import train_bpe
 
 
@@ -306,7 +316,36 @@ def run_transformer_block(
         Float[Tensor, "batch sequence_length d_model"] Tensor with the output of
         running the Transformer block on the input features while using RoPE.
     """
-    raise NotImplementedError
+    attn_layer = MultiHeadSelfAttention(
+        d_model, num_heads, max_seq_len, theta=theta
+    )
+    attn_layer.load_state_dict(
+        {
+            "WQ": weights["attn.q_proj.weight"],
+            "WK": weights["attn.k_proj.weight"],
+            "WV": weights["attn.v_proj.weight"],
+            "WO": weights["attn.output_proj.weight"],
+        }
+    )
+    rms_layer_1 = RMSNorm(d_model)
+    rms_layer_1.load_state_dict({"g": weights["ln1.weight"]})
+    rms_layer_2 = RMSNorm(d_model)
+    rms_layer_2.load_state_dict({"g": weights["ln2.weight"]})
+    ffn_layer = SwiGLU(d_ff, d_model)
+    ffn_layer.load_state_dict(
+        {
+            "w1": weights["ffn.w1.weight"],
+            "w2": weights["ffn.w2.weight"],
+            "w3": weights["ffn.w3.weight"],
+        }
+    )
+    model = TransformerBlock(
+        attn_layer,
+        rms_layer_1,
+        rms_layer_2,
+        ffn_layer,
+    )
+    return model.forward(in_features)
 
 
 def run_transformer_lm(
@@ -453,7 +492,9 @@ def run_get_batch(
     raise NotImplementedError
 
 
-def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, " ..."]:
+def run_softmax(
+    in_features: Float[Tensor, " ..."], dim: int
+) -> Float[Tensor, " ..."]:
     """
     Given a tensor of inputs, return the output of softmaxing the given `dim`
     of the input.
@@ -470,7 +511,8 @@ def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, "
 
 
 def run_cross_entropy(
-    inputs: Float[Tensor, " batch_size vocab_size"], targets: Int[Tensor, " batch_size"]
+    inputs: Float[Tensor, " batch_size vocab_size"],
+    targets: Int[Tensor, " batch_size"],
 ) -> Float[Tensor, ""]:
     """Given a tensor of inputs and targets, compute the average cross-entropy
     loss across examples.
@@ -487,7 +529,9 @@ def run_cross_entropy(
     raise NotImplementedError
 
 
-def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm: float) -> None:
+def run_gradient_clipping(
+    parameters: Iterable[torch.nn.Parameter], max_l2_norm: float
+) -> None:
     """Given a set of parameters, clip their combined gradients to have l2 norm at most max_l2_norm.
 
     Args:
@@ -624,4 +668,9 @@ def run_train_bpe(
                 representing that <token1> was merged with <token2>.
                 Merges are ordered by order of creation.
     """
-    return train_bpe(input_path=input_path, vocab_size=vocab_size, special_tokens=special_tokens, **kwargs)
+    return train_bpe(
+        input_path=input_path,
+        vocab_size=vocab_size,
+        special_tokens=special_tokens,
+        **kwargs,
+    )
