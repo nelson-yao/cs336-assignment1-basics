@@ -1,3 +1,4 @@
+from sympy import sequence
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -220,10 +221,10 @@ class MultiHeadSelfAttention(nn.Module):
             "... seq  (h d_v) -> ... h seq d_v",
             h=self.h,
         )
+
+        sequence_length = min(in_features.shape[-2], self.max_seq_len)
         mask = (
-            torch.tril(
-                torch.ones(self.max_seq_len, self.max_seq_len), diagonal=0
-            )
+            torch.tril(torch.ones(sequence_length, sequence_length), diagonal=0)
             > 0.5
         )
         attn: Tensor = attention(q, k, v, mask=mask)
@@ -241,14 +242,14 @@ class TransformerBlock(nn.Module):
     ):
         super().__init__()
         self.attn = attention_layer
-        self.rms_norm_1 = rms_layer_1
-        self.rms_norm_2: RMSNorm = deepcopy(rms_layer_2)
+        self.rms_norm_1: RMSNorm = rms_layer_1
+        self.rms_norm_2: RMSNorm = rms_layer_2
         self.ff = ff_layer
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.rms_norm_1(x)
+        rms_x_1 = self.rms_norm_1(x)
         positions = torch.arange(x.shape[-2])
-        x = x + self.attn.forward(x, positions)
-        x = self.rms_norm_2.forward(x)
-        x = x + self.ff.forward(x)
+        x = x + self.attn.forward(rms_x_1, positions)
+        rms_x_2 = self.rms_norm_2.forward(x)
+        x = x + self.ff.forward(rms_x_2)
         return x
