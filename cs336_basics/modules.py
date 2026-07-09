@@ -5,7 +5,7 @@ from einops import einsum, rearrange
 from jaxtyping import Float
 from torch import Tensor, nn
 from copy import deepcopy
-
+from jaxtyping import Int
 # lt.monkey_patch()  # Overrides default torch.Tensor print behavior
 
 
@@ -252,3 +252,10 @@ class TransformerBlock(nn.Module):
         x = self.rms_norm_2.forward(x)
         x = x + self.ff.forward(x)
         return x
+
+
+def cross_entropy(
+    inputs: Float[Tensor, " batch_size vocab_size"],
+    targets: Int[Tensor, " batch_size"],
+):
+    pass
