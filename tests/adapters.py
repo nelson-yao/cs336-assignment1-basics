@@ -19,6 +19,7 @@ from cs336_basics.modules import (
     softmax,
     MultiHeadSelfAttention,
     TransformerBlock,
+    cross_entropy,
 )
 from cs336_basics.train_bpe import train_bpe
 
@@ -526,7 +527,7 @@ def run_cross_entropy(
     Returns:
         Float[Tensor, ""]: The average cross-entropy loss across examples.
     """
-    raise NotImplementedError
+    return cross_entropy(inputs, targets)
 
 
 def run_gradient_clipping(

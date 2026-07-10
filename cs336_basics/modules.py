@@ -259,4 +259,9 @@ def cross_entropy(
     inputs: Float[Tensor, " batch_size vocab_size"],
     targets: Int[Tensor, " batch_size"],
 ):
-    pass
+    # -F.one_hot(targets, num_classes=inputs.shape[-1]) @
+    inputs = inputs - inputs.amax(dim=-1, keepdim=True)
+    return torch.mean(
+        inputs.exp().sum(dim=-1, keepdim=True).log()
+        - inputs[torch.arange(inputs.size(0)), targets]
+    )
