@@ -21,6 +21,7 @@ from cs336_basics.modules import (
     TransformerBlock,
     cross_entropy,
 )
+from cs336_basics.custom_modules.adamw import AdamW
 from cs336_basics.train_bpe import train_bpe
 
 
@@ -548,7 +549,11 @@ def get_adamw_cls() -> Any:
     """
     Returns a torch.optim.Optimizer that implements AdamW.
     """
-    raise NotImplementedError
+    # weights = torch.nn.Parameter(5 * torch.randn((10, 10)))
+    # beta1 = 0.9
+    # beta2 = 0.95
+    # opt = AdamW([weights], betas=(beta1, beta2), lr=1)
+    return AdamW
 
 
 def run_get_lr_cosine_schedule(

@@ -20,6 +20,7 @@ dependencies = [
     "ty>=0.0.26",
     "ruff>=0.15.8",
     "torchtune>=0.6.1",
+    "matplotlib>=3.11.1",
 ]
 
 [build-system]
