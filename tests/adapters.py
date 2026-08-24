@@ -21,8 +21,9 @@ from cs336_basics.modules import (
     TransformerBlock,
     cross_entropy,
 )
-from cs336_basics.custom_modules.adamw import AdamW
+from cs336_basics.optimizer import AdamW
 from cs336_basics.train_bpe import train_bpe
+from cs336_basics.transformer_lm import TransformerLM
 
 
 def run_linear(
@@ -350,6 +351,46 @@ def run_transformer_block(
     return model.forward(in_features)
 
 
+def initialize_block(
+    layer_num, d_model, num_heads, context_length, rope_theta, weights
+):
+    attn_layer = MultiHeadSelfAttention(
+        d_model, num_heads, context_length, theta=rope_theta
+    )
+
+    attn_layer.load_state_dict(
+        {
+            "WQ": weights[f"layers.{layer_num}.attn.q_proj.weight"],
+            "WK": weights[f"layers.{layer_num}.attn.k_proj.weight"],
+            "WV": weights[f"layers.{layer_num}.attn.v_proj.weight"],
+            "WO": weights[f"layers.{layer_num}.attn.output_proj.weight"],
+        }
+    )
+    rms_layer_1 = RMSNorm(d_model)
+    rms_layer_1.load_state_dict(
+        {"g": weights[f"layers.{layer_num}.ln1.weight"]}
+    )
+    rms_layer_2 = RMSNorm(d_model)
+    rms_layer_2.load_state_dict(
+        {"g": weights[f"layers.{layer_num}.ln2.weight"]}
+    )
+    ffn_layer = SwiGLU(d_ff, d_model)
+    ffn_layer.load_state_dict(
+        {
+            "w1": weights[f"layers.{layer_num}.ffn.w1.weight"],
+            "w2": weights[f"layers.{layer_num}.ffn.w2.weight"],
+            "w3": weights[f"layers.{layer_num}.ffn.w3.weight"],
+        }
+    )
+    model = TransformerBlock(
+        attn_layer,
+        rms_layer_1,
+        rms_layer_2,
+        ffn_layer,
+    )
+    return model
+
+
 def run_transformer_lm(
     vocab_size: int,
     context_length: int,
@@ -429,7 +470,23 @@ def run_transformer_lm(
         Float[Tensor, "batch_size sequence_length vocab_size"]: Tensor with the predicted unnormalized
         next-word distribution for each token.
     """
-    raise NotImplementedError
+    embedding_layer = Embedding(vocab_size, d_model)
+
+    blocks = [
+        initialize_block(
+            i, d_model, num_heads, context_length, rope_theta, weights
+        )
+        for i in range(num_layers)
+    ]
+
+    rms_final = RMSNorm(d_model)
+    rms_final.load_state_dict({"g": weights["ln_final.weight"]})
+    lm_head = Linear(d_model, vocab_size)
+    lm_head.load_state_dict({"W": weights["lm_head.weight"]})
+
+    lm = TransformerLM(embedding_layer, blocks, rms_final, lm_head)
+
+    return lm.foward(in_indices)
 
 
 def run_rmsnorm(

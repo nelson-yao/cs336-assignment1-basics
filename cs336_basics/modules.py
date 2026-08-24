@@ -244,7 +244,7 @@ class TransformerBlock(nn.Module):
         self.attn = attention_layer
         self.rms_norm_1: RMSNorm = rms_layer_1
         self.rms_norm_2: RMSNorm = rms_layer_2
-        self.ff = ff_layer
+        self.ff: SwiGLU = ff_layer
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         rms_x_1 = self.rms_norm_1(x)
