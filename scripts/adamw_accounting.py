@@ -100,6 +100,10 @@ def max_batch_size(
     return max_batch_size
 
 
+def adamw_flop_per_iteration(n_parameter):
+    return 20 * n_parameter
+
+
 if __name__ == "__main__":
     peak_param = adamw_param_count_per_batch(
         batch_size,

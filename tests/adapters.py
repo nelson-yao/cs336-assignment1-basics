@@ -24,6 +24,7 @@ from cs336_basics.modules import (
 from cs336_basics.optimizer import AdamW
 from cs336_basics.train_bpe import train_bpe
 from cs336_basics.transformer_lm import TransformerLM
+from cs336_basics.training_utils import lr_schedule
 
 
 def run_linear(
@@ -638,7 +639,13 @@ def run_get_lr_cosine_schedule(
     Returns:
         Learning rate at the given iteration under the specified schedule.
     """
-    raise NotImplementedError
+    return lr_schedule(
+        it,
+        max_learning_rate,
+        min_learning_rate,
+        warmup_iters,
+        cosine_cycle_iters,
+    )
 
 
 def run_save_checkpoint(
