@@ -1,4 +1,3 @@
-from tests.test_tokenizer import VOCAB_PATH
 from collections.abc import Callable, Iterable
 from typing import Optional
 import torch

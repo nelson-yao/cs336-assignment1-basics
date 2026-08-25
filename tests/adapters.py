@@ -352,7 +352,7 @@ def run_transformer_block(
 
 
 def initialize_block(
-    layer_num, d_model, num_heads, context_length, rope_theta, weights
+    layer_num, d_model, num_heads, context_length, rope_theta, d_ff, weights
 ):
     attn_layer = MultiHeadSelfAttention(
         d_model, num_heads, context_length, theta=rope_theta
@@ -471,10 +471,10 @@ def run_transformer_lm(
         next-word distribution for each token.
     """
     embedding_layer = Embedding(vocab_size, d_model)
-
+    embedding_layer.load_state_dict({"emb": weights["token_embeddings.weight"]})
     blocks = [
         initialize_block(
-            i, d_model, num_heads, context_length, rope_theta, weights
+            i, d_model, num_heads, context_length, rope_theta, d_ff, weights
         )
         for i in range(num_layers)
     ]
@@ -486,7 +486,7 @@ def run_transformer_lm(
 
     lm = TransformerLM(embedding_layer, blocks, rms_final, lm_head)
 
-    return lm.foward(in_indices)
+    return lm.forward(in_indices)
 
 
 def run_rmsnorm(

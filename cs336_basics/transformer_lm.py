@@ -5,7 +5,7 @@ from cs336_basics.modules import Embedding
 from cs336_basics.modules import Linear
 
 
-class TransformerLM(torch.Module):
+class TransformerLM(torch.nn.Module):
     def __init__(
         self,
         embedding: Embedding,
@@ -15,7 +15,7 @@ class TransformerLM(torch.Module):
     ):
         super().__init__()
         self.embed_layer = embedding
-        self.blocks = blocks
+        self.blocks = torch.nn.ModuleList(blocks)
         self.rms_final = rms_final
         self.lm_head = lm_head
 
