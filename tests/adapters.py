@@ -24,7 +24,7 @@ from cs336_basics.modules import (
 from cs336_basics.optimizer import AdamW
 from cs336_basics.train_bpe import train_bpe
 from cs336_basics.transformer_lm import TransformerLM
-from cs336_basics.training_utils import lr_schedule
+from cs336_basics.training_utils import lr_schedule, clip_gradient
 
 
 def run_linear(
@@ -600,7 +600,7 @@ def run_gradient_clipping(
 
     The gradients of the parameters (parameter.grad) should be modified in-place.
     """
-    raise NotImplementedError
+    clip_gradient(parameters, max_l2_norm)
 
 
 def get_adamw_cls() -> Any:
