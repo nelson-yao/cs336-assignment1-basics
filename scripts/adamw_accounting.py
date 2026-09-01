@@ -100,8 +100,22 @@ def max_batch_size(
     return max_batch_size
 
 
-def adamw_flop_per_iteration(n_parameter):
-    return 20 * n_parameter
+def adamw_flop_per_step(n_parameter):
+    """
+    calculation per step:
+    lr * weight_decay
+    1 - beta1
+    1 - beta2
+    adjust alpha_t : 7
+
+    per param:
+
+    apply weight decay: 2
+    update first moment: 3
+    update second moment: 4
+    Apply moment-adjusted weight updates : 5
+    """
+    return 14 * n_parameter + 10
 
 
 if __name__ == "__main__":

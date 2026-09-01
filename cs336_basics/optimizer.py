@@ -46,6 +46,7 @@ class AdamW(torch.optim.Optimizer):
                 v = beta2 * v + grad**2 * (1 - beta2)
                 p.data -= alpha_t * m / (torch.sqrt(v) + epsilon)
 
-                state["m"], state["v"], state["t"] = m, v, t + 1
+                state["m"], state["v"] = m, v
 
+        state["t"] = t + 1
         return loss
